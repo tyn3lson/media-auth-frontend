@@ -1,9 +1,12 @@
 {
+  "engines": {
+    "node": "20.x"
+  },
   "name": "media-auth-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -21,7 +24,6 @@
     "autoprefixer": "^10.4.21",
     "postcss": "^8.4.41",
     "tailwindcss": "^3.4.13",
-    "@tailwindcss/postcss": "^4.0.0",
     "typescript": "^5.5.4"
   }
 }
