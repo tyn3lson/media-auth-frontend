@@ -332,14 +332,27 @@ function GlobalStyles() {
         pointer-events:none;
         z-index:0;
       }
-      .page-shimmer::after{
-        content:"";
-        position:absolute; inset:0;
-        background-image: url('/noise.png'); /* optional tiny noise image */
-        opacity:.045;
-        animation: pageNoise 120s linear infinite;
-        pointer-events:none;
-        z-index:0;
+      .page-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+
+  /* Animated gradient noise */
+  background-image:
+    radial-gradient(1px 1px at 25% 25%, rgba(255, 255, 255, 0.05), transparent),
+    radial-gradient(1px 1px at 75% 75%, rgba(255, 255, 255, 0.05), transparent);
+  background-size: 50px 50px;
+
+  animation: noiseShift 10s linear infinite;
+  opacity: 0.045;
+}
+
+@keyframes noiseShift {
+  0%   { background-position: 0 0, 25px 25px; }
+  100% { background-position: 50px 50px, 75px 75px; }
+}
       }
       @keyframes pageGradient{ 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
       @keyframes pageAurora{ 0%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(-20px,12px,0) scale(1.04)} 100%{transform:translate3d(18px,-12px,0) scale(1.02)} }
