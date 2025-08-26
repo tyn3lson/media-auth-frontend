@@ -2,16 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------- Base variables ---------- */
 :root{
-  --brand:#18b6ff;        
-  --brand-accent:#7ee0ff; 
+  --brand:#18b6ff;
+  --brand-accent:#7ee0ff;
   --surface:#0b0f14;
   --card:#101720;
   --soft:#152130;
 }
+
+/* ---------- Minimal reset (fixes white gaps on Vercel) ---------- */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* ---------- Default body look (used when not in embed mode) ---------- */
 body {
   background: var(--surface);
   color: white;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  letter-spacing: 0.1px;   
+}
+
+/* crisp logo/images + sensible defaults */
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  image-rendering: -webkit-optimize-contrast;
 }

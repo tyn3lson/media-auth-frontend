@@ -479,75 +479,59 @@ function PillShell({
 function GlobalStyles({ embed = false }: { embed?: boolean }) {
   return (
     <style jsx global>{`
-      /* Full-page animated background */
+      /* ==== Page background (rich but subtle) ==== */
       .page-shimmer{
         position:relative;
         ${embed
           ? 'background: transparent !important;'
-          : 'background: linear-gradient(-45deg, #07131b, #0a1a26, #091623, #0d2231); background-size: 380% 380%; animation: pageGradient 26s ease-in-out infinite;'}
-      }
-      ${embed ? '.page-shimmer::before,.page-shimmer::after{ display:none !important; }' : `
-      .page-shimmer::before{
-        content:"";
-        position:absolute; inset:-10%;
-        background:
-          radial-gradient(70% 100% at 15% 20%, rgba(0,255,200,.08), transparent 60%),
-          radial-gradient(80% 110% at 85% 75%, rgba(80,180,255,.08), transparent 62%);
-        mix-blend-mode: screen;
-        filter: blur(24px) saturate(110%);
-        animation: pageAurora 60s ease-in-out infinite alternate;
-        pointer-events:none;
-        z-index:0;
+          : `
+            background: radial-gradient(1200px 600px at 50% -10%, rgba(34,183,255,.12), transparent 60%),
+                        radial-gradient(900px 900px at -10% 110%, rgba(79,255,210,.10), transparent 55%),
+                        linear-gradient(180deg, #081620 0%, #0a1d2a 50%, #0a1520 100%);
+            background-attachment: fixed;
+          `}
       }
       .page-shimmer::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        z-index: 0;
-        pointer-events: none;
-        background-image:
-          radial-gradient(1px 1px at 25% 25%, rgba(255, 255, 255, 0.05), transparent),
-          radial-gradient(1px 1px at 75% 75%, rgba(255, 255, 255, 0.05), transparent);
-        background-size: 50px 50px;
-        animation: noiseShift 10s linear infinite;
-        opacity: 0.045;
-      }`}
-
-      @keyframes noiseShift { 0%{ background-position: 0 0, 25px 25px } 100%{ background-position: 50px 50px, 75px 75px } }
-      @keyframes pageGradient{ 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
-      @keyframes pageAurora{ 0%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(-20px,12px,0) scale(1.04)} 100%{transform:translate3d(18px,-12px,0) scale(1.02)} }
-
-      @media (prefers-reduced-motion: reduce){
-        .page-shimmer{ animation:none !important }
-        .page-shimmer::before,.page-shimmer::after{ animation:none !important }
+        ${embed ? 'display:none;' : `
+          content: '';
+          position: absolute; inset: 0; z-index: 0; pointer-events: none;
+          background-image:
+            radial-gradient(1px 1px at 25% 25%, rgba(255,255,255,.06), transparent 40%),
+            radial-gradient(1px 1px at 75% 75%, rgba(255,255,255,.05), transparent 40%);
+          background-size: 60px 60px;
+          opacity: .05;
+        `}
       }
 
-      /* Pills */
-      .pill-wrap{ position:relative; margin:0 auto; width:${PILL_WIDTH}; z-index:1; cursor:pointer; }
-      .glow{ position:absolute; inset:-26px; border-radius:9999px; filter: blur(26px) saturate(120%); pointer-events:none; }
+      /* ==== Layout rhythm ==== */
+      header, section, footer { position: relative; z-index: 1; }
+      .pill-wrap{ position:relative; margin:0 auto; width:${PILL_WIDTH}; cursor:pointer; }
+      @media (max-width: 560px){ .pill-wrap{ width: 92vw; } }
 
+      /* ==== The pill look (deeper, smoother) ==== */
+      .glow{ position:absolute; inset:-26px; border-radius:9999px; filter: blur(28px) saturate(120%); pointer-events:none; opacity:.75; }
       .pill-surface{
-        position:relative; overflow:hidden; border-radius:9999px;
-        box-shadow: 0 0 0 1px rgba(255,255,255,.08),
-                    inset 0 1px 0 rgba(255,255,255,.28),
-                    inset 0 10px 22px rgba(255,255,255,.08),
-                    inset 0 -18px 28px rgba(0,0,0,.38),
-                    0 18px 58px rgba(0,0,0,.35);
-        transition: transform .15s ease, box-shadow .25s ease, background .2s ease, filter .2s ease;
+        position:relative; overflow:hidden; border-radius:22px;
+        box-shadow:
+          0 0 0 1px rgba(255,255,255,.07),
+          inset 0 1px 0 rgba(255,255,255,.28),
+          inset 0 12px 28px rgba(255,255,255,.06),
+          inset 0 -18px 34px rgba(0,0,0,.40),
+          0 18px 58px rgba(0,0,0,.40);
+        transition: transform .15s ease, box-shadow .25s ease, filter .25s ease;
       }
-      .pill-surface:hover{ transform: translateY(-1px); }
+      .pill-surface:hover{ transform: translateY(-1px); filter: saturate(105%); }
       .sheen::after{
         content:''; position:absolute; left:0; right:0; top:0; height:38%;
-        border-top-left-radius:9999px; border-top-right-radius:9999px;
+        border-top-left-radius:22px; border-top-right-radius:22px;
         background:linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,.10) 28%, rgba(255,255,255,0) 70%);
         mix-blend-mode:screen; pointer-events:none;
       }
 
+      /* Titles */
       .brand-title{
-        font-family: 'Orbitron', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial;
-        text-transform: uppercase;
-        letter-spacing: .6px;
-        font-weight: 700;
+        font-family: 'Orbitron', Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        text-transform: uppercase; letter-spacing: .6px; font-weight: 700;
       }
       .pill-surface[data-variant="upload"] .pill-title{
         color:#e9fdff;
@@ -557,47 +541,56 @@ function GlobalStyles({ embed = false }: { embed?: boolean }) {
         color:#effff3;
         text-shadow: 0 0 2px rgba(46,224,122,.32), 0 0 6px rgba(46,224,122,.20);
       }
-      .pill-sub{ color: rgba(255,255,255,.88); text-shadow: none; letter-spacing: .1px; }
+      .pill-sub{ color: rgba(255,255,255,.90); letter-spacing: .1px; }
 
+      /* Input strip */
       .inner-strip{
-        width:85%; border-radius:9999px; display:flex; align-items:center; justify-content:center;
-        border:1px solid rgba(255,255,255,.26); background:rgba(255,255,255,.10); backdrop-filter:blur(2px);
+        width:86%; height:40px;
+        border-radius:12px; display:flex; align-items:center; justify-content:center;
+        border:1px solid rgba(255,255,255,.26);
+        background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.08));
+        backdrop-filter:blur(4px);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
         transition: transform .12s ease, box-shadow .18s ease, background .18s ease;
       }
-      .inner-strip:hover{ transform: translateY(-1px); box-shadow:0 8px 20px rgba(0,0,0,.25); background:rgba(255,255,255,.14); }
+      .inner-strip:hover{ transform: translateY(-1px); box-shadow:0 8px 20px rgba(0,0,0,.25); }
 
+      /* Buttons */
       .cta{
         display:inline-flex; align-items:center; justify-content:center;
         min-width:128px; padding:0 20px; border-radius:9999px; font-weight:700; letter-spacing:.25px;
         transition: transform .12s ease, box-shadow .18s ease; height:40px;
       }
-      .brand-btn{ font-family: 'Orbitron', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; letter-spacing:.25px; text-shadow:none; }
+      .brand-btn{ font-family: 'Orbitron', Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial; letter-spacing:.25px; }
       .cta-cyan{ color:#031a1f; background:linear-gradient(#49f2ff,#1bc7d7); box-shadow:0 6px 16px rgba(73,242,255,.22), 0 0 0 2px rgba(73,242,255,.18) inset; }
       .cta-cyan:hover{ transform:translateY(-1px); box-shadow:0 10px 22px rgba(73,242,255,.28), 0 0 0 2px rgba(73,242,255,.22) inset; }
       .cta-green{ color:#072015; background:linear-gradient(#63f59f,#31d977); box-shadow:0 6px 16px rgba(46,224,122,.22), 0 0 0 2px rgba(46,224,122,.18) inset; }
       .cta-green:hover{ transform:translateY(-1px); box-shadow:0 10px 22px rgba(46,224,122,.28), 0 0 0 2px rgba(46,224,122,.22) inset; }
 
-      .verify-helper{ margin-top:.5rem; font-size:12px; text-align:center; color:rgba(255,255,255,.82); }
-      .verify-helper .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; color:#fff; }
-
+      /* Results banner (less harsh) */
       .result-banner{
         width:${PILL_WIDTH};
-        margin: 0 auto; display:flex; align-items:center; justify-content:center; gap:.6rem;
-        border-radius:9999px; padding: 12px 18px; font-size:14px; font-weight:600;
-        box-shadow: 0 10px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.18);
+        margin: 6px auto 0; display:flex; align-items:center; justify-content:center; gap:.6rem;
+        border-radius:14px; padding: 11px 18px; font-size:14px; font-weight:600;
+        box-shadow: 0 8px 22px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.18);
         animation: fadeUp .28s ease-out forwards; transform: translateY(6px); opacity: 0; text-align:center;
+        backdrop-filter: blur(4px);
       }
       .result-banner.ok{
         color:#062012; background: linear-gradient(#6bf1a7, #2fd876);
-        box-shadow: 0 10px 28px rgba(0,0,0,.35), 0 0 0 2px rgba(46,224,122,.18) inset, 0 0 18px rgba(46,224,122,.28);
+        box-shadow: 0 8px 22px rgba(0,0,0,.35), 0 0 0 2px rgba(46,224,122,.18) inset, 0 0 18px rgba(46,224,122,.28);
       }
       .result-banner.err{
         color:#1d0a0a; background: linear-gradient(#ff9aa0,#ff6b74);
-        box-shadow: 0 10px 28px rgba(0,0,0,.35), 0 0 0 2px rgba(255,107,116,.22) inset, 0 0 18px rgba(255,107,116,.30);
+        box-shadow: 0 8px 22px rgba(0,0,0,.35), 0 0 0 2px rgba(255,107,116,.22) inset, 0 0 18px rgba(255,107,116,.30);
       }
       .result-icon{ font-size:16px; }
       .result-text{ opacity:.95; }
       @keyframes fadeUp{ to { transform: translateY(0); opacity: 1; } }
+
+      /* Subtle helper line */
+      .verify-helper{ margin-top:.5rem; font-size:12px; text-align:center; color:rgba(255,255,255,.82); }
+      .verify-helper .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; color:#fff; }
     `}</style>
   );
 }
