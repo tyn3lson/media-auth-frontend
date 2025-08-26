@@ -35,3 +35,102 @@ img {
   height: auto;
   image-rendering: -webkit-optimize-contrast;
 }
+
+
+/* Background gets a subtle aurora + grain, still dark */
+.page-shimmer{
+  position: relative;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(34,183,255,.10), transparent 60%),
+    radial-gradient(900px 900px at -10% 110%, rgba(79,255,210,.09), transparent 55%),
+    linear-gradient(180deg, #081620 0%, #0a1d2a 52%, #0a1520 100%);
+  background-attachment: fixed;
+}
+.page-shimmer::after{
+  content: "";
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 25% 25%, rgba(255,255,255,.06), transparent 40%),
+    radial-gradient(1px 1px at 75% 75%, rgba(255,255,255,.05), transparent 40%);
+  background-size: 60px 60px;
+  opacity: .05;
+}
+
+/* Keep sections above the background effects */
+header, section, footer { position: relative; z-index: 1; }
+
+/* Pill container width + responsive */
+.pill-wrap{ width: clamp(480px, 56vw, 720px); margin: 0 auto; cursor: pointer; }
+@media (max-width: 560px){ .pill-wrap{ width: 92vw; } }
+
+/* Bigger glow + fully rounded surface */
+.glow{
+  position:absolute; inset:-30px; border-radius:9999px;
+  filter: blur(30px) saturate(120%); pointer-events:none; opacity:.85;
+}
+.pill-surface{
+  overflow:hidden; border-radius:9999px !important; /* <- no more blocky edges */
+  padding: 22px 0 !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.07),
+    inset 0 1px 0 rgba(255,255,255,.28),
+    inset 0 12px 28px rgba(255,255,255,.06),
+    inset 0 -18px 34px rgba(0,0,0,.42),
+    0 20px 60px rgba(0,0,0,.42);
+  transition: transform .15s ease, box-shadow .25s ease, filter .25s ease;
+}
+.pill-surface:hover{
+  transform: translateY(-1px);
+  filter: saturate(106%);
+}
+/* top sheen */
+.pill-surface.sheen::after{
+  content:''; position:absolute; left:0; right:0; top:0; height:38%;
+  border-top-left-radius:9999px; border-top-right-radius:9999px;
+  background:linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,.10) 28%, rgba(255,255,255,0) 70%);
+  mix-blend-mode:screen; pointer-events:none;
+}
+
+/* Titles + subtitle readability */
+.brand-title{
+  font-family: 'Orbitron', Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  text-transform: uppercase; letter-spacing: .6px; font-weight: 700;
+}
+.pill-sub{ color: rgba(255,255,255,.92); letter-spacing: .1px; }
+
+/* Input strip fully rounded glass */
+.inner-strip{
+  width:86%; height:40px;
+  border-radius:9999px !important;
+  border:1px solid rgba(255,255,255,.26);
+  background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.08));
+  backdrop-filter:blur(4px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
+  transition: transform .12s ease, box-shadow .18s ease, background .18s ease;
+}
+.inner-strip:hover{ transform: translateY(-1px); box-shadow:0 8px 20px rgba(0,0,0,.25); }
+
+/* Buttons keep the playful depth */
+.cta{
+  min-width:128px; height:40px; border-radius:9999px;
+  font-weight:700; letter-spacing:.25px;
+  transition: transform .12s ease, box-shadow .18s ease;
+}
+.cta-cyan{
+  color:#031a1f; background:linear-gradient(#49f2ff,#1bc7d7);
+  box-shadow:0 6px 16px rgba(73,242,255,.22), 0 0 0 2px rgba(73,242,255,.18) inset;
+}
+.cta-cyan:hover{ transform:translateY(-1px); box-shadow:0 10px 22px rgba(73,242,255,.28), 0 0 0 2px rgba(73,242,255,.22) inset; }
+.cta-green{
+  color:#072015; background:linear-gradient(#63f59f,#31d977);
+  box-shadow:0 6px 16px rgba(46,224,122,.22), 0 0 0 2px rgba(46,224,122,.18) inset;
+}
+.cta-green:hover{ transform:translateY(-1px); box-shadow:0 10px 22px rgba(46,224,122,.28), 0 0 0 2px rgba(46,224,122,.22) inset; }
+
+/* Friendlier result banner */
+.result-banner{
+  width: clamp(480px, 56vw, 720px);
+  margin: 8px auto 0; border-radius:14px; padding: 11px 18px;
+  box-shadow: 0 8px 22px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.18);
+  backdrop-filter: blur(4px);
+}
