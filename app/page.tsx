@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 
-/** .env.local → NEXT_PUBLIC_API_BASE=http://localhost:8000 */
+/** .env.local → NEXT_PUBLIC_API_BASE=https://declassifai-backend1.onrender.com */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
 
 const PILL_WIDTH_DESKTOP = 680;
@@ -15,9 +15,22 @@ async function sha256Hex(ab: ArrayBuffer): Promise<string> {
   return bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/* ---------- Friendly format helpers ---------- */
+function formatBytes(n?: number) {
+  if (typeof n !== 'number') return '';
+  const u = ['B','KB','MB','GB','TB']; let i = 0; let v = n;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v < 10 && i>0 ? 1 : 0)} ${u[i]}`;
+}
+function formatDate(iso?: string) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+
+/* ================= Page ================= */
+
 export default function Page() {
   const [lastRecordedHash, setLastRecordedHash] = useState<string>('');
-
   return (
     <main className="page-shimmer min-h-screen text-white relative overflow-hidden">
       <Header />
@@ -65,20 +78,14 @@ function Footer() {
 function ResultBanner({ kind, text }: { kind: 'ok' | 'error'; text: string }) {
   const isOk = kind === 'ok';
   return (
-    <div
-      role="status"
-      className={`result-banner ${isOk ? 'ok' : 'err'}`}
-      aria-live="polite"
-    >
-      <span className="result-icon" aria-hidden="true">
-        {isOk ? '✅' : '❌'}
-      </span>
+    <div role="status" className={`result-banner ${isOk ? 'ok' : 'err'}`} aria-live="polite">
+      <span className="result-icon" aria-hidden="true">{isOk ? '✅' : '❌'}</span>
       <span className="result-text">{text}</span>
     </div>
   );
 }
 
-/* ================= Upload Pill ================= */
+/* ================= Upload Pill + Details Modal ================= */
 
 function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
   const [file, setFile] = useState<File | null>(null);
@@ -86,6 +93,11 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
   const [status, setStatus] = useState<'' | 'ok' | 'error'>('');
   const [msg, setMsg] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // NEW: track the latest upload (to power the Details button/modal)
+  const [lastSha, setLastSha] = useState<string>('');
+  const [lastRecordId, setLastRecordId] = useState<string>('');
+  const [showDetails, setShowDetails] = useState(false);
 
   const openPicker = () => inputRef.current?.click();
   const prevent = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
@@ -100,12 +112,13 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
       const data = await r.json().catch(()=> ({}));
       if (!r.ok) throw new Error(data?.detail || data?.message || `HTTP ${r.status}`);
       const h: string = data?.sha256 || data?.hash || data?.digest || '';
-      if (h) onRecorded(h);
+      if (h) { onRecorded(h); setLastSha(h); }
+      if (data?.record_id) setLastRecordId(data.record_id);
       setStatus('ok');
-      setMsg(h ? `Recorded (hash: ${h.slice(0,12)}…)` : 'Recorded.');
+      setMsg('Uploaded. We’ll finish things in the background.');
     } catch(e:any) {
       setStatus('error');
-      setMsg(`Couldn't record — ${e?.message || 'try again.'}`);
+      setMsg(`Couldn't upload — ${e?.message || 'try again.'}`);
     } finally { setBusy(false); }
   }
 
@@ -115,7 +128,7 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
         color="cyan"
         variant="upload"
         title="Lock It In"
-        subtitle="Anchor your file’s fingerprint — proof that lasts forever."
+        subtitle="Save a permanent fingerprint of your file."
         onClick={openPicker}
         dragHandlers={{
           onDragOver: prevent,
@@ -129,13 +142,25 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
             {file ? file.name : 'Drag & drop or click to choose'}
           </button>
 
-          <button
-            className="cta cta-cyan brand-btn h-[40px]"
-            onClick={(e)=>{ e.stopPropagation(); recordFile(); }}
-            disabled={!file || busy}
-          >
-            {busy ? 'Uploading…' : 'Record File'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              className="cta cta-cyan brand-btn h-[40px]"
+              onClick={(e)=>{ e.stopPropagation(); recordFile(); }}
+              disabled={!file || busy}
+            >
+              {busy ? 'Uploading…' : 'Upload'}
+            </button>
+
+            {/* NEW: Details button (appears after we have a SHA) */}
+            {lastSha && (
+              <button
+                className="cta h-[40px] border border-white/20 hover:border-white/40 rounded-full px-5 text-sm"
+                onClick={(e)=>{ e.stopPropagation(); setShowDetails(true); }}
+              >
+                Details
+              </button>
+            )}
+          </div>
         </div>
 
         <input
@@ -147,6 +172,15 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
       </PillShell>
 
       {status && <div className="mt-2"><ResultBanner kind={status} text={msg} /></div>}
+
+      {/* NEW: Friendly modal with non-technical wording */}
+      {showDetails && lastSha && (
+        <MetadataModal
+          sha256={lastSha}
+          recordId={lastRecordId}
+          onClose={()=> setShowDetails(false)}
+        />
+      )}
     </>
   );
 }
@@ -189,7 +223,7 @@ function VerifyPill({ lastRecordedHash }: { lastRecordedHash: string }) {
         });
         const d1 = await r1.json().catch(()=> ({}));
         if (r1.ok && typeof d1?.found === 'boolean') {
-          if (d1.found) { setStatus('ok'); setMsg('Match found — authenticated.'); }
+          if (d1.found) { setStatus('ok'); setMsg('Match found.'); }
           else { setStatus('error'); setMsg('No record found for this file.'); }
           return;
         }
@@ -200,11 +234,11 @@ function VerifyPill({ lastRecordedHash }: { lastRecordedHash: string }) {
       const r2 = await fetch(`${API_BASE}/verify`, { method: 'POST', body: fd });
       const d2 = await r2.json().catch(()=> ({}));
       if (!r2.ok) throw new Error(d2?.detail || d2?.message || `HTTP ${r2.status}`);
-      if (d2?.found) { setStatus('ok'); setMsg('Match found — authenticated.'); }
+      if (d2?.found) { setStatus('ok'); setMsg('Match found.'); }
       else { setStatus('error'); setMsg('No record found for this file.'); }
     } catch(e:any) {
       setStatus('error');
-      setMsg(`Verification failed — ${e?.message || 'try again.'}`);
+      setMsg(`Couldn't verify — ${e?.message || 'try again.'}`);
     } finally { setBusy(false); }
   }
 
@@ -216,7 +250,7 @@ function VerifyPill({ lastRecordedHash }: { lastRecordedHash: string }) {
         color="green"
         variant="verify"
         title="Check the Truth"
-        subtitle="See if this file is already secured in our vault."
+        subtitle="See if this file is already saved."
         onClick={openPicker}
         dragHandlers={{
           onDragOver: prevent,
@@ -235,7 +269,7 @@ function VerifyPill({ lastRecordedHash }: { lastRecordedHash: string }) {
             onClick={(e)=>{ e.stopPropagation(); verifyFile(); }}
             disabled={!file || busy}
           >
-            {busy ? 'Verifying…' : 'Verify File'}
+            {busy ? 'Checking…' : 'Verify'}
           </button>
         </div>
 
@@ -247,15 +281,133 @@ function VerifyPill({ lastRecordedHash }: { lastRecordedHash: string }) {
         />
       </PillShell>
 
-      {/* RESULT BANNER moved ABOVE the helper so it's higher on the page */}
       {status && <div className="mt-1"><ResultBanner kind={status} text={msg} /></div>}
 
-      {/* Helper (now below the banner) */}
+      {/* Tiny helper (kept subtle) */}
       <div className="verify-helper">
-        <div>computed: <span className="mono">{short(computedHash)}</span></div>
-        <div>last recorded: <span className="mono">{short(lastRecordedHash)}</span></div>
+        <div>File ID (this file): <span className="mono">{short(computedHash)}</span></div>
+        <div>Most recent file ID: <span className="mono">{short(lastRecordedHash)}</span></div>
       </div>
     </>
+  );
+}
+
+/* ================= Friendly Metadata Modal ================= */
+
+function StatusBadge({ state }: { state?: string }) {
+  const label = state === 'anchored' ? 'Verified on chain'
+               : state === 'processing' ? 'Processing'
+               : state === 'queued' ? 'Queued'
+               : 'Pending';
+  return (
+    <span className="inline-flex items-center rounded-full px-3 py-1 text-xs border border-white/15 bg-white/5">
+      {label}
+    </span>
+  );
+}
+
+type Rec = {
+  id: string;
+  sha256: string;
+  original_filename: string;
+  stored_filename: string;
+  size_bytes: number;
+  content_type: string;
+  uploaded_at: string;
+  image_width?: number;
+  image_height?: number;
+  anchored?: { state?: string; tx_hash?: string; explorer_url?: string; updated_at?: string };
+};
+
+function MetadataModal({ sha256, recordId, onClose }: { sha256: string; recordId?: string; onClose: ()=>void }) {
+  const [rec, setRec] = useState<Rec | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // fetch details
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/files/by-hash/${sha256}`, { cache: 'no-store' });
+        if (res.ok && alive) setRec(await res.json());
+      } finally { if (alive) setLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, [sha256]);
+
+  // gentle poll for anchoring status (if we also have recordId)
+  useEffect(() => {
+    if (!recordId) return;
+    let timer: any;
+    let count = 0;
+    const tick = async () => {
+      count++;
+      try {
+        const r = await fetch(`${API_BASE}/job/${recordId}`);
+        const j = await r.json();
+        if (j?.anchored?.state === 'anchored') {
+          // refresh the record so "View public proof" shows up
+          const res = await fetch(`${API_BASE}/files/by-hash/${sha256}`, { cache: 'no-store' });
+          if (res.ok) setRec(await res.json());
+          return;
+        }
+      } catch {}
+      if (count < 40) timer = setTimeout(tick, 3000);
+    };
+    timer = setTimeout(tick, 3000);
+    return () => clearTimeout(timer);
+  }, [recordId, sha256]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-black/70 backdrop-blur p-5 text-white z-10">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold">File details</h3>
+          <StatusBadge state={rec?.anchored?.state} />
+        </div>
+
+        {loading ? (
+          <div className="mt-4 text-white/80">Loading…</div>
+        ) : !rec ? (
+          <div className="mt-4 text-red-400">Couldn’t load details.</div>
+        ) : (
+          <>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              <div><span className="opacity-70">File name:</span> {rec.original_filename}</div>
+              <div><span className="opacity-70">Size:</span> {formatBytes(rec.size_bytes)}</div>
+              <div><span className="opacity-70">Type:</span> {rec.content_type}</div>
+              <div><span className="opacity-70">Added:</span> {formatDate(rec.uploaded_at)}</div>
+              {rec.image_width && rec.image_height && (
+                <div className="sm:col-span-2"><span className="opacity-70">Dimensions:</span> {rec.image_width} × {rec.image_height}</div>
+              )}
+              <div className="sm:col-span-2">
+                <span className="opacity-70">File ID:</span>{' '}
+                <span className="break-all">{rec.sha256}</span>
+              </div>
+            </div>
+
+            {rec.anchored?.explorer_url && (
+              <a
+                className="mt-4 inline-flex rounded-full px-4 py-2 border border-white/20 hover:border-white/40 text-sm"
+                href={rec.anchored.explorer_url} target="_blank" rel="noreferrer"
+              >
+                View public proof
+              </a>
+            )}
+          </>
+        )}
+
+        <div className="mt-5 flex justify-end">
+          <button
+            className="rounded-full px-4 py-2 border border-white/20 hover:border-white/40 text-sm"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -308,12 +460,12 @@ function PillShell({
   );
 }
 
-/* ================= Global styles ================= */
+/* ================= Global styles (kept, slightly tweaked copy) ================= */
 
 function GlobalStyles() {
   return (
     <style jsx global>{`
-      /* Full‑page animated background */
+      /* Full-page animated background */
       .page-shimmer{
         position:relative;
         background: linear-gradient(-45deg, #07131b, #0a1a26, #091623, #0d2231);
@@ -333,37 +485,28 @@ function GlobalStyles() {
         z-index:0;
       }
       .page-shimmer::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-
-  /* Animated gradient noise */
-  background-image:
-    radial-gradient(1px 1px at 25% 25%, rgba(255, 255, 255, 0.05), transparent),
-    radial-gradient(1px 1px at 75% 75%, rgba(255, 255, 255, 0.05), transparent);
-  background-size: 50px 50px;
-
-  animation: noiseShift 10s linear infinite;
-  opacity: 0.045;
-}
-
-@keyframes noiseShift {
-  0%   { background-position: 0 0, 25px 25px; }
-  100% { background-position: 50px 50px, 75px 75px; }
-}
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background-image:
+          radial-gradient(1px 1px at 25% 25%, rgba(255, 255, 255, 0.05), transparent),
+          radial-gradient(1px 1px at 75% 75%, rgba(255, 255, 255, 0.05), transparent);
+        background-size: 50px 50px;
+        animation: noiseShift 10s linear infinite;
+        opacity: 0.045;
       }
+      @keyframes noiseShift { 0%{ background-position: 0 0, 25px 25px } 100%{ background-position: 50px 50px, 75px 75px } }
       @keyframes pageGradient{ 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
       @keyframes pageAurora{ 0%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(-20px,12px,0) scale(1.04)} 100%{transform:translate3d(18px,-12px,0) scale(1.02)} }
-      @keyframes pageNoise{ from{transform:translate3d(0,0,0)} to{transform:translate3d(-600px,-400px,0)} }
 
       @media (prefers-reduced-motion: reduce){
         .page-shimmer{ animation:none !important }
         .page-shimmer::before,.page-shimmer::after{ animation:none !important }
       }
 
-      /* Pills (original styling you liked) */
+      /* Pills */
       .pill-wrap{ position:relative; margin:0 auto; width:${PILL_WIDTH}; z-index:1; cursor:pointer; }
       .glow{ position:absolute; inset:-26px; border-radius:9999px; filter: blur(26px) saturate(120%); pointer-events:none; }
 
@@ -377,7 +520,6 @@ function GlobalStyles() {
         transition: transform .15s ease, box-shadow .25s ease, background .2s ease, filter .2s ease;
       }
       .pill-surface:hover{ transform: translateY(-1px); }
-
       .sheen::after{
         content:''; position:absolute; left:0; right:0; top:0; height:38%;
         border-top-left-radius:9999px; border-top-right-radius:9999px;
@@ -385,7 +527,6 @@ function GlobalStyles() {
         mix-blend-mode:screen; pointer-events:none;
       }
 
-      /* --- Tone down the neon look (titles & buttons cleaner) --- */
       .brand-title{
         font-family: 'Orbitron', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial;
         text-transform: uppercase;
@@ -400,92 +541,47 @@ function GlobalStyles() {
         color:#effff3;
         text-shadow: 0 0 2px rgba(46,224,122,.32), 0 0 6px rgba(46,224,122,.20);
       }
-      .pill-sub{
-        color: rgba(255,255,255,.88);
-        text-shadow: none;
-        letter-spacing: .1px;
-      }
+      .pill-sub{ color: rgba(255,255,255,.88); text-shadow: none; letter-spacing: .1px; }
 
-      /* Inner controls */
       .inner-strip{
-        width:85%; border-radius:9999px;
-        display:flex; align-items:center; justify-content:center;
-        border:1px solid rgba(255,255,255,.26);
-        background:rgba(255,255,255,.10);
-        backdrop-filter:blur(2px);
+        width:85%; border-radius:9999px; display:flex; align-items:center; justify-content:center;
+        border:1px solid rgba(255,255,255,.26); background:rgba(255,255,255,.10); backdrop-filter:blur(2px);
         transition: transform .12s ease, box-shadow .18s ease, background .18s ease;
       }
       .inner-strip:hover{ transform: translateY(-1px); box-shadow:0 8px 20px rgba(0,0,0,.25); background:rgba(255,255,255,.14); }
 
       .cta{
         display:inline-flex; align-items:center; justify-content:center;
-        min-width:168px; padding:0 20px; border-radius:9999px;
-        font-weight:700; letter-spacing:.25px; transition: transform .12s ease, box-shadow .18s ease;
-        height:40px;
+        min-width:128px; padding:0 20px; border-radius:9999px; font-weight:700; letter-spacing:.25px;
+        transition: transform .12s ease, box-shadow .18s ease; height:40px;
       }
-      .brand-btn{
-        font-family: 'Orbitron', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial;
-        letter-spacing:.25px;
-        text-shadow:none;
-      }
-      .cta-cyan{
-        color:#031a1f;
-        background:linear-gradient(#49f2ff,#1bc7d7);
-        box-shadow:0 6px 16px rgba(73,242,255,.22), 0 0 0 2px rgba(73,242,255,.18) inset;
-      }
+      .brand-btn{ font-family: 'Orbitron', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; letter-spacing:.25px; text-shadow:none; }
+      .cta-cyan{ color:#031a1f; background:linear-gradient(#49f2ff,#1bc7d7); box-shadow:0 6px 16px rgba(73,242,255,.22), 0 0 0 2px rgba(73,242,255,.18) inset; }
       .cta-cyan:hover{ transform:translateY(-1px); box-shadow:0 10px 22px rgba(73,242,255,.28), 0 0 0 2px rgba(73,242,255,.22) inset; }
-
-      .cta-green{
-        color:#072015;
-        background:linear-gradient(#63f59f,#31d977);
-        box-shadow:0 6px 16px rgba(46,224,122,.22), 0 0 0 2px rgba(46,224,122,.18) inset;
-      }
+      .cta-green{ color:#072015; background:linear-gradient(#63f59f,#31d977); box-shadow:0 6px 16px rgba(46,224,122,.22), 0 0 0 2px rgba(46,224,122,.18) inset; }
       .cta-green:hover{ transform:translateY(-1px); box-shadow:0 10px 22px rgba(46,224,122,.28), 0 0 0 2px rgba(46,224,122,.22) inset; }
 
-      /* Verify helper text */
-      .verify-helper{
-        margin-top:.5rem; font-size:12px; text-align:center; color:rgba(255,255,255,.82);
-      }
-      .verify-helper .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace; color:#fff; }
+      .verify-helper{ margin-top:.5rem; font-size:12px; text-align:center; color:rgba(255,255,255,.82); }
+      .verify-helper .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; color:#fff; }
 
-      /* Result banners */
       .result-banner{
         width:${PILL_WIDTH};
-        margin: 0 auto;
-        display:flex; align-items:center; justify-content:center;
-        gap:.6rem;
-        border-radius:9999px;
-        padding: 12px 18px;
-        font-size:14px;
-        font-weight:600;
+        margin: 0 auto; display:flex; align-items:center; justify-content:center; gap:.6rem;
+        border-radius:9999px; padding: 12px 18px; font-size:14px; font-weight:600;
         box-shadow: 0 10px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.18);
-        animation: fadeUp .28s ease-out forwards;
-        transform: translateY(6px);
-        opacity: 0;
-        text-align:center;
+        animation: fadeUp .28s ease-out forwards; transform: translateY(6px); opacity: 0; text-align:center;
       }
       .result-banner.ok{
-        color:#062012;
-        background: linear-gradient(#6bf1a7, #2fd876);
-        box-shadow:
-          0 10px 28px rgba(0,0,0,.35),
-          0 0 0 2px rgba(46,224,122,.18) inset,
-          0 0 18px rgba(46,224,122,.28);
+        color:#062012; background: linear-gradient(#6bf1a7, #2fd876);
+        box-shadow: 0 10px 28px rgba(0,0,0,.35), 0 0 0 2px rgba(46,224,122,.18) inset, 0 0 18px rgba(46,224,122,.28);
       }
       .result-banner.err{
-        color:#1d0a0a;
-        background: linear-gradient(#ff9aa0,#ff6b74);
-        box-shadow:
-          0 10px 28px rgba(0,0,0,.35),
-          0 0 0 2px rgba(255,107,116,.22) inset,
-          0 0 18px rgba(255,107,116,.30);
+        color:#1d0a0a; background: linear-gradient(#ff9aa0,#ff6b74);
+        box-shadow: 0 10px 28px rgba(0,0,0,.35), 0 0 0 2px rgba(255,107,116,.22) inset, 0 0 18px rgba(255,107,116,.30);
       }
       .result-icon{ font-size:16px; }
       .result-text{ opacity:.95; }
-
-      @keyframes fadeUp{
-        to { transform: translateY(0); opacity: 1; }
-      }
+      @keyframes fadeUp{ to { transform: translateY(0); opacity: 1; } }
     `}</style>
   );
 }
