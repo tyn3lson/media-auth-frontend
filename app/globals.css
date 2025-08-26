@@ -29,3 +29,21 @@ button, input, select, textarea { font: inherit; }
 
 /* safe image defaults (doesn't affect styling you set in page.tsx) */
 img { display:block; max-width:100%; height:auto; }
+/* --- Force fully rounded "pill" ends everywhere --- */
+.pill-surface,
+.pill-surface::before,
+.pill-surface::after,
+.inner-strip {
+  border-radius: 9999px !important;
+}
+
+/* Ensure nothing clips the rounding */
+.pill-surface {
+  overflow: hidden !important;
+  clip-path: inset(0 round 9999px); /* hard fix for stubborn cascades */
+}
+
+/* Make the glow match the pill shape */
+.glow {
+  border-radius: 9999px !important;
+}
