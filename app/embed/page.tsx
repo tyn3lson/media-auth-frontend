@@ -9,7 +9,7 @@ export default function Embed() {
   const [note, setNote] = useState('');
   const [sha, setSha] = useState('');
 
-  // auto-resize for Squarespace iframe
+  // auto-resize for Squarespace iframe (works on live/preview)
   const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const post = () => {
@@ -34,49 +34,66 @@ export default function Embed() {
       if (!res.ok) throw new Error(data?.detail || data?.message || 'Upload failed');
       setSha(data.sha256 || '');
       setNote('Uploaded. We’ll finish things in the background.');
-    } catch (e: any) {
+    } catch (e:any) {
       setNote(e?.message || 'Something went wrong.');
     } finally { setBusy(false); }
   }
 
   return (
-    <div ref={ref} style={{ padding: 16, background: 'transparent', color: '#fff', fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial' }}>
-      <div style={{ maxWidth: 680, margin: '0 auto' }}>
-        <h2 style={{ margin: 0, marginBottom: 8, fontSize: 20 }}>Upload</h2>
-        <p style={{ marginTop: 0, opacity: .85 }}>Save a secure record of your file. You can view the details anytime.</p>
+    <div ref={ref} style={{ padding: 16, background: 'transparent' }}>
+      <div style={{ maxWidth: 680, margin: '0 auto', color: '#111', fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial' }}>
+        <h2 style={{ margin: 0, marginBottom: 8, fontSize: 22, color: '#111' }}>Upload</h2>
+        <p style={{ marginTop: 0, color: '#333' }}>Save a secure record of your file. You can view the details anytime.</p>
 
-        <div style={{ display:'flex', gap: 8, alignItems:'center', flexWrap:'wrap', marginTop: 8 }}>
+        <div style={{ display:'flex', gap: 10, alignItems:'center', flexWrap:'wrap', marginTop: 10 }}>
           <input type="file" onChange={(e)=> setFile(e.target.files?.[0] ?? null)} />
           <button
             onClick={onUpload}
             disabled={!file || busy || !API_BASE}
-            style={{ padding: '8px 16px', borderRadius: 9999, border: '1px solid rgba(255,255,255,.25)', background: 'transparent', color: '#fff' }}
+            style={{
+              padding: '10px 18px',
+              borderRadius: 9999,
+              border: '1px solid #0a84ff',
+              background: '#0a84ff',
+              color: '#fff',
+              fontWeight: 600,
+              cursor: (!file || busy) ? 'not-allowed' : 'pointer'
+            }}
           >
             {busy ? 'Uploading…' : 'Upload'}
           </button>
           {sha && (
             <a
-              href={`/metadata/${sha}`} // this uses your existing details UI route
+              href={`/metadata/${sha}`}
               target="_blank" rel="noreferrer"
-              style={{ padding: '8px 16px', borderRadius: 9999, border: '1px solid rgba(255,255,255,.25)', textDecoration: 'none', color:'#fff' }}
+              style={{
+                padding: '10px 18px',
+                borderRadius: 9999,
+                border: '1px solid #d0d7de',
+                background: '#fff',
+                color: '#111',
+                textDecoration: 'none',
+                fontWeight: 600
+              }}
             >
               View details
             </a>
           )}
         </div>
 
-        {note && <div style={{ marginTop: 10, fontSize: 14, opacity: .9 }}>{note}</div>}
+        {note && <div style={{ marginTop: 12, fontSize: 14, color: '#111' }}>{note}</div>}
 
         {sha && (
-          <div style={{ marginTop: 10, fontSize: 12, opacity: .8 }}>
+          <div style={{ marginTop: 8, fontSize: 12, color: '#444' }}>
             File ID: <span style={{ wordBreak:'break-all' }}>{sha}</span>
           </div>
         )}
       </div>
 
+      {/* Force a light base so text is visible on white sites */}
       <style jsx global>{`
-        body { background: transparent !important; }
-        a { color: inherit; }
+        html, body { background: transparent !important; color: #111 !important; }
+        a { color: #0a84ff; }
       `}</style>
     </div>
   );
