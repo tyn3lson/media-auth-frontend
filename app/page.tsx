@@ -31,9 +31,29 @@ function formatDate(iso?: string) {
 
 export default function Page() {
   const [lastRecordedHash, setLastRecordedHash] = useState<string>('');
+
+  // ===== Embed mode detection + auto-resize (for Squarespace iframe) =====
+  const [isEmbed, setIsEmbed] = useState(false);
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      setIsEmbed(p.get('embed') === '1');
+    } catch {}
+    const post = () => {
+      const h = document.body.scrollHeight;
+      window.parent?.postMessage({ type: 'DECLASSIFAI_EMBED_HEIGHT', height: h }, '*');
+    };
+    post();
+    const ro = new ResizeObserver(post);
+    ro.observe(document.body);
+    const id = setInterval(post, 1000);
+    return () => { ro.disconnect(); clearInterval(id); };
+  }, []);
+  // ======================================================================
+
   return (
-    <main className="page-shimmer min-h-screen text-white relative overflow-hidden">
-      <Header />
+    <main className={`page-shimmer min-h-screen relative overflow-hidden ${isEmbed ? 'text-[#111]' : 'text-white'}`}>
+      {!isEmbed && <Header />}
 
       <section
         className="mx-auto px-4 sm:px-6 pb-20 space-y-10 relative z-10"
@@ -43,8 +63,8 @@ export default function Page() {
         <VerifyPill lastRecordedHash={lastRecordedHash} />
       </section>
 
-      <Footer />
-      <GlobalStyles />
+      {!isEmbed && <Footer />}
+      <GlobalStyles embed={isEmbed} />
     </main>
   );
 }
@@ -94,7 +114,7 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
   const [msg, setMsg] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // NEW: track the latest upload (to power the Details button/modal)
+  // track the latest upload (to power the Details button/modal)
   const [lastSha, setLastSha] = useState<string>('');
   const [lastRecordId, setLastRecordId] = useState<string>('');
   const [showDetails, setShowDetails] = useState(false);
@@ -151,7 +171,6 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
               {busy ? 'Uploading…' : 'Upload'}
             </button>
 
-            {/* NEW: Details button (appears after we have a SHA) */}
             {lastSha && (
               <button
                 className="cta h-[40px] border border-white/20 hover:border-white/40 rounded-full px-5 text-sm"
@@ -173,7 +192,6 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
 
       {status && <div className="mt-2"><ResultBanner kind={status} text={msg} /></div>}
 
-      {/* NEW: Friendly modal with non-technical wording */}
       {showDetails && lastSha && (
         <MetadataModal
           sha256={lastSha}
@@ -283,7 +301,6 @@ function VerifyPill({ lastRecordedHash }: { lastRecordedHash: string }) {
 
       {status && <div className="mt-1"><ResultBanner kind={status} text={msg} /></div>}
 
-      {/* Tiny helper (kept subtle) */}
       <div className="verify-helper">
         <div>File ID (this file): <span className="mono">{short(computedHash)}</span></div>
         <div>Most recent file ID: <span className="mono">{short(lastRecordedHash)}</span></div>
@@ -323,7 +340,6 @@ function MetadataModal({ sha256, recordId, onClose }: { sha256: string; recordId
   const [rec, setRec] = useState<Rec | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // fetch details
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -335,7 +351,6 @@ function MetadataModal({ sha256, recordId, onClose }: { sha256: string; recordId
     return () => { alive = false; };
   }, [sha256]);
 
-  // gentle poll for anchoring status (if we also have recordId)
   useEffect(() => {
     if (!recordId) return;
     let timer: any;
@@ -346,7 +361,6 @@ function MetadataModal({ sha256, recordId, onClose }: { sha256: string; recordId
         const r = await fetch(`${API_BASE}/job/${recordId}`);
         const j = await r.json();
         if (j?.anchored?.state === 'anchored') {
-          // refresh the record so "View public proof" shows up
           const res = await fetch(`${API_BASE}/files/by-hash/${sha256}`, { cache: 'no-store' });
           if (res.ok) setRec(await res.json());
           return;
@@ -411,7 +425,7 @@ function MetadataModal({ sha256, recordId, onClose }: { sha256: string; recordId
   );
 }
 
-/* ================= Shared pill shell (keeps your visual) ================= */
+/* ================= Shared pill shell ================= */
 
 function PillShell({
   children, color, variant, title, subtitle, onClick, dragHandlers
@@ -460,18 +474,19 @@ function PillShell({
   );
 }
 
-/* ================= Global styles (kept, slightly tweaked copy) ================= */
+/* ================= Global styles ================= */
 
-function GlobalStyles() {
+function GlobalStyles({ embed = false }: { embed?: boolean }) {
   return (
     <style jsx global>{`
       /* Full-page animated background */
       .page-shimmer{
         position:relative;
-        background: linear-gradient(-45deg, #07131b, #0a1a26, #091623, #0d2231);
-        background-size: 380% 380%;
-        animation: pageGradient 26s ease-in-out infinite;
+        ${embed
+          ? 'background: transparent !important;'
+          : 'background: linear-gradient(-45deg, #07131b, #0a1a26, #091623, #0d2231); background-size: 380% 380%; animation: pageGradient 26s ease-in-out infinite;'}
       }
+      ${embed ? '.page-shimmer::before,.page-shimmer::after{ display:none !important; }' : `
       .page-shimmer::before{
         content:"";
         position:absolute; inset:-10%;
@@ -496,7 +511,8 @@ function GlobalStyles() {
         background-size: 50px 50px;
         animation: noiseShift 10s linear infinite;
         opacity: 0.045;
-      }
+      }`}
+
       @keyframes noiseShift { 0%{ background-position: 0 0, 25px 25px } 100%{ background-position: 50px 50px, 75px 75px } }
       @keyframes pageGradient{ 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
       @keyframes pageAurora{ 0%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(-20px,12px,0) scale(1.04)} 100%{transform:translate3d(18px,-12px,0) scale(1.02)} }
