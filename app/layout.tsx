@@ -28,11 +28,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body className="min-h-full">
         {children}
 
-        {/* Small global reset so the background fills and text renders cleanly */}
-        <style jsx global>{`
-          html, body { height: 100%; margin: 0; padding: 0; }
-          body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-        `}</style>
+       
+       
       </body>
     </html>
   );
