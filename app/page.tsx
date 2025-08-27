@@ -1,12 +1,27 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
+import Gate from './components/Gate';
+import { supabase } from './lib/supabaseClient';
 
 /** .env.local → NEXT_PUBLIC_API_BASE=https://declassifai-backend1.onrender.com */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
 
 const PILL_WIDTH_DESKTOP = 680;
 const PILL_WIDTH = `clamp(480px, 56vw, ${PILL_WIDTH_DESKTOP}px)`;
+
+/* ---------- Authenticated fetch helper ---------- */
+async function authFetch(path: string, init?: RequestInit) {
+  const token = (await supabase.auth.getSession()).data.session?.access_token;
+  if (!token) throw new Error('Not signed in');
+  return fetch(`${API_BASE}${path}`, {
+    ...(init || {}),
+    headers: {
+      ...(init?.headers || {}),
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
 
 /* ---------- SHA-256 helper (hex) ---------- */
 async function sha256Hex(ab: ArrayBuffer): Promise<string> {
@@ -31,21 +46,24 @@ function formatDate(iso?: string) {
 
 export default function Page() {
   const [lastRecordedHash, setLastRecordedHash] = useState<string>('');
+
   return (
-    <main className="page-shimmer min-h-screen text-white relative overflow-hidden">
-      <Header />
+    <Gate>
+      <main className="page-shimmer min-h-screen text-white relative overflow-hidden">
+        <Header />
 
-      <section
-        className="mx-auto px-4 sm:px-6 pb-20 space-y-10 relative z-10"
-        style={{ maxWidth: PILL_WIDTH_DESKTOP + 80 }}
-      >
-        <UploadPill onRecorded={(h) => setLastRecordedHash(h)} />
-        <VerifyPill lastRecordedHash={lastRecordedHash} />
-      </section>
+        <section
+          className="mx-auto px-4 sm:px-6 pb-20 space-y-10 relative z-10"
+          style={{ maxWidth: PILL_WIDTH_DESKTOP + 80 }}
+        >
+          <UploadPill onRecorded={(h) => setLastRecordedHash(h)} />
+          <VerifyPill lastRecordedHash={lastRecordedHash} />
+        </section>
 
-      <Footer />
-      <GlobalStyles />
-    </main>
+        <Footer />
+        <GlobalStyles />
+      </main>
+    </Gate>
   );
 }
 
@@ -108,7 +126,7 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const r = await fetch(`${API_BASE}/upload`, { method: 'POST', body: fd });
+      const r = await authFetch(`/upload`, { method: 'POST', body: fd });
       const data = await r.json().catch(()=> ({}));
       if (!r.ok) throw new Error(data?.detail || data?.message || `HTTP ${r.status}`);
       const h: string = data?.sha256 || data?.hash || data?.digest || '';
@@ -116,6 +134,8 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
       if (data?.record_id) setLastRecordId(data.record_id);
       setStatus('ok');
       setMsg('Uploaded. We’ll finish things in the background.');
+      // optional: gently scroll host up
+      window.parent?.postMessage({ type: 'declassifai:scrollTop' }, '*');
     } catch(e:any) {
       setStatus('error');
       setMsg(`Couldn't upload — ${e?.message || 'try again.'}`);
@@ -173,7 +193,7 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
 
       {status && <div className="mt-2"><ResultBanner kind={status} text={msg} /></div>}
 
-      {/* NEW: Friendly modal with non-technical wording */}
+      {/* Details modal */}
       {showDetails && lastSha && (
         <MetadataModal
           sha256={lastSha}
@@ -216,7 +236,7 @@ function VerifyPill({ lastRecordedHash }: { lastRecordedHash: string }) {
     try {
       // Prefer hash-only endpoint first
       if (computedHash) {
-        const r1 = await fetch(`${API_BASE}/verify-hash`, {
+        const r1 = await authFetch(`/verify-hash`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ hash: computedHash }),
@@ -231,7 +251,7 @@ function VerifyPill({ lastRecordedHash }: { lastRecordedHash: string }) {
       // Fallback: POST the file
       const fd = new FormData();
       fd.append('file', file);
-      const r2 = await fetch(`${API_BASE}/verify`, { method: 'POST', body: fd });
+      const r2 = await authFetch(`/verify`, { method: 'POST', body: fd });
       const d2 = await r2.json().catch(()=> ({}));
       if (!r2.ok) throw new Error(d2?.detail || d2?.message || `HTTP ${r2.status}`);
       if (d2?.found) { setStatus('ok'); setMsg('Match found.'); }
@@ -283,7 +303,6 @@ function VerifyPill({ lastRecordedHash }: { lastRecordedHash: string }) {
 
       {status && <div className="mt-1"><ResultBanner kind={status} text={msg} /></div>}
 
-      {/* Tiny helper (kept subtle) */}
       <div className="verify-helper">
         <div>File ID (this file): <span className="mono">{short(computedHash)}</span></div>
         <div>Most recent file ID: <span className="mono">{short(lastRecordedHash)}</span></div>
@@ -328,7 +347,7 @@ function MetadataModal({ sha256, recordId, onClose }: { sha256: string; recordId
     let alive = true;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/files/by-hash/${sha256}`, { cache: 'no-store' });
+        const res = await authFetch(`/files/by-hash/${sha256}`, { cache: 'no-store' });
         if (res.ok && alive) setRec(await res.json());
       } finally { if (alive) setLoading(false); }
     })();
@@ -343,11 +362,10 @@ function MetadataModal({ sha256, recordId, onClose }: { sha256: string; recordId
     const tick = async () => {
       count++;
       try {
-        const r = await fetch(`${API_BASE}/job/${recordId}`);
+        const r = await authFetch(`/job/${recordId}`, { cache: 'no-store' });
         const j = await r.json();
         if (j?.anchored?.state === 'anchored') {
-          // refresh the record so "View public proof" shows up
-          const res = await fetch(`${API_BASE}/files/by-hash/${sha256}`, { cache: 'no-store' });
+          const res = await authFetch(`/files/by-hash/${sha256}`, { cache: 'no-store' });
           if (res.ok) setRec(await res.json());
           return;
         }
@@ -460,7 +478,7 @@ function PillShell({
   );
 }
 
-/* ================= Global styles (kept, slightly tweaked copy) ================= */
+/* ================= Global styles (kept) ================= */
 
 function GlobalStyles() {
   return (
@@ -585,4 +603,3 @@ function GlobalStyles() {
     `}</style>
   );
 }
-
