@@ -120,23 +120,56 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
   const openPicker = () => inputRef.current?.click();
   const prevent = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
 
+  // UPDATED: S3 presign → PUT → commit flow
   async function recordFile() {
     if (!file) return;
     setBusy(true); setMsg(''); setStatus('');
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const r = await authFetch(`/upload`, { method: 'POST', body: fd });
-      const data = await r.json().catch(()=> ({}));
-      if (!r.ok) throw new Error(data?.detail || data?.message || `HTTP ${r.status}`);
-      const h: string = data?.sha256 || data?.hash || data?.digest || '';
-      if (h) { onRecorded(h); setLastSha(h); }
-      if (data?.record_id) setLastRecordId(data.record_id);
+      // 1) Compute SHA-256 + capture size & content type
+      setMsg('Computing file ID…');
+      const ab = await file.arrayBuffer();
+      const sha = await sha256Hex(ab);
+      const size = file.size;
+      const ctLocal = file.type || 'application/octet-stream';
+
+      // 2) Presign
+      setMsg('Requesting S3 URL…');
+      const pres = await authFetch(`/s3/presign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sha256: sha, filename: file.name, content_type: ctLocal, size })
+      });
+      const presJson = await pres.json().catch(() => ({}));
+      if (!pres.ok) throw new Error(presJson?.detail || presJson?.message || `presign HTTP ${pres.status}`);
+
+      const url: string = presJson.url;
+      const key: string = presJson.key;
+      const ctRequired: string = presJson?.headers?.['Content-Type'] || ctLocal;
+
+      // 3) PUT to S3 with required Content-Type
+      setMsg('Uploading to S3…');
+      const putRes = await fetch(url, { method: 'PUT', headers: { 'Content-Type': ctRequired }, body: file });
+      if (!putRes.ok) throw new Error(`S3 PUT ${putRes.status}`);
+
+      // 4) Commit upload in backend
+      setMsg('Committing upload…');
+      const commit = await authFetch(`/upload/commit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sha256: sha, key, size, content_type: ctRequired, original_filename: file.name })
+      });
+      const commitJson = await commit.json().catch(() => ({}));
+      if (!commit.ok) throw new Error(commitJson?.detail || commitJson?.message || `commit HTTP ${commit.status}`);
+
+      // Success state
+      onRecorded(sha);
+      setLastSha(sha);
+      if (commitJson?.record_id) setLastRecordId(commitJson.record_id);
       setStatus('ok');
-      setMsg('Uploaded. We’ll finish things in the background.');
-      // optional: gently scroll host up
+      setMsg('Uploaded. Anchoring queued — view details to track status.');
+      // optional gentle scroll
       window.parent?.postMessage({ type: 'declassifai:scrollTop' }, '*');
-    } catch(e:any) {
+    } catch (e: any) {
       setStatus('error');
       setMsg(`Couldn't upload — ${e?.message || 'try again.'}`);
     } finally { setBusy(false); }
@@ -168,10 +201,9 @@ function UploadPill({ onRecorded }: { onRecorded: (hash: string) => void }) {
               onClick={(e)=>{ e.stopPropagation(); recordFile(); }}
               disabled={!file || busy}
             >
-              {busy ? 'Uploading…' : 'Upload'}
+              {busy ? 'Working…' : 'Upload'}
             </button>
 
-            {/* NEW: Details button (appears after we have a SHA) */}
             {lastSha && (
               <button
                 className="cta h-[40px] border border-white/20 hover:border-white/40 rounded-full px-5 text-sm"
