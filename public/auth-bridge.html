@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>DeclassifAI Auth Bridge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body style="background:#0b0b0b;color:#fff;font:14px system-ui;display:flex;align-items:center;justify-content:center;height:100vh">
+  <div id="msg">Checking session…</div>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    // 🔧 Fill these in
+    const SUPABASE_URL = "https://obhzpiwwofyibqctrrnc.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9iaHpwaXd3b2Z5aWJxY3Rycm5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYyNTM3NzgsImV4cCI6MjA3MTgyOTc3OH0.ib-nAqmWL7jqqnXnKnDNX2CcxNQVg5KzRM4-kpm8VCo";
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,   // session stored on app.de-classifai.com
+        detectSessionInUrl: true
+      }
+    });
+
+    const openerOriginAllowlist = [
+      "https://de-classifai.com",
+      "https://www.de-classifai.com",
+      "https://app.de-classifai.com",
+      "https://*.squarespace.com"
+    ];
+
+    function safePost(payload){
+      // Post to whoever opened us, but only after validating origin on the receiver
+      if (window.opener) {
+        window.opener.postMessage(payload, "*");
+      }
+    }
+
+    async function sendSession(){
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        document.getElementById('msg').textContent = "Redirecting to sign in…";
+        // If no session, send the user to your normal login flow on this same page.
+        // After Supabase finishes, it returns to this URL and we’ll have a session.
+        await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: location.href }
+        });
+        return;
+      }
+
+      const payload = {
+        type: "DCL_AUTH",
+        access_token: session.access_token,
+        expires_at: session.expires_at,
+        user: { id: session.user.id, email: session.user.email }
+      };
+
+      safePost(payload);
+      document.getElementById('msg').textContent = "Signed in — closing…";
+      setTimeout(() => window.close(), 400);
+    }
+
+    sendSession();
+  </script>
+</body>
+</html>
